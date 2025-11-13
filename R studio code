@@ -1,1 +1,8 @@
-read.csv("~/data.csv")
+bankruptcy <- read.csv("[path]/data.csv") #read in the file
+
+mod_bank <- lm(Bankrupt. ~ ., data = bankruptcy) #simple linear regression with all variables
+anova(mod_bank)
+
+mod_back <- step(mod_bank, direction = "backward", trace = 0) #step process with backwards deletion 
+
+mod_forward <- step(mod_bank, direction = "forward", trace = 0) #step process with forwards adding 
