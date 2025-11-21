@@ -11,7 +11,7 @@ library(tidyverse)
 
 profitability <- bankruptcy %>% #new dataframe with selected columns based on profitability
   select(Bankrupt., Operating.Gross.Margin, Realized.Sales.Gross.Margin, Pre.tax.net.Interest.Rate, 
-  Operating.Profit.Growth.Rate, Cash.Flow.to.Equity, Total.income.Total.expense) # 
+  Operating.Profit.Growth.Rate, Cash.Flow.to.Equity, Total.income.Total.expense, Revenue.Per.Share..Yuan...) # 
 
 mod_profit <- glm(Bankrupt. ~., data = profitability, family = binomial)
 summary(mod_profit) 
