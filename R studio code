@@ -17,3 +17,7 @@ mod_profit <- glm(Bankrupt. ~., data = profitability, family = binomial)
 summary(mod_profit) 
 plot(mod_profit, 1)
 plot(mod_profit, 2)
+
+mod_back <- step(mod_profit, direction = "backward", trace = 0) #keeps 4 predictors  
+
+mod_forward <- step(mod_profit, direction = "forward", trace = 0) #keeps 6 predictors 
