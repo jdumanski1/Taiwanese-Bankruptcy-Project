@@ -1,40 +1,92 @@
+#Loading and packages 
+
 bankruptcy <- read.csv("[path]/data.csv") #read in the file
+library(tidyverse)
+library(tree)
+library(rpart)
+library(rpart.plot)
+library(MASS)
 
-### Generic model code 
+#tree model: 
 
-mod_bank <- lm(Bankrupt. ~ ., data = bankruptcy) #simple linear regression with all variables
-anova(mod_bank)
+indBank =sample(1:nrow(bankruptcy), replace = FALSE, nrow(bankruptcy)*0.7)
+bank_trn <- bankruptcy[indBank,]
+bank_test <- bankruptcy[-indBank,]
+banks_tree = rpart(Bankrupt. ~ ., data = bank_trn, method = "class")
+summary(banks_tree)
+rpart.plot(banks_tree)  #initial tree model 
+pred_bank_initial <- predict(banks_tree, bank_test, type = "class")
+table(predicted = pred_bank_initial,actual= bank_test$Bankrupt.)
+(accuracy.full= mean(pred_bank_initial == bank_test$Bankrupt.)) #96.6 % accuracy predicting bankruptcy in the tree model!
+
+### Full model code 
+
+mod_bank <- glm(Bankrupt. ~ ., data = bankruptcy, family = binomial) #logistic regression with all vars
+summary(mod_bank) # wow, they're all super significant! AIC: 16332
 
 mod_back <- step(mod_bank, direction = "backward", trace = 0) #step process with backwards deletion 
+summary(mod_back) #AIC: 25847
 
 mod_forward <- step(mod_bank, direction = "forward", trace = 0) #step process with forwards adding 
-
-library(tidyverse)
+summary(mod_forward) #AIC: 16332
 
 
 ### Profitability 
 
 
 profitability <- bankruptcy %>% #new dataframe with selected columns based on profitability
-  select(Bankrupt., Operating.Gross.Margin, Realized.Sales.Gross.Margin, Pre.tax.net.Interest.Rate, 
-  Operating.Profit.Rate, Cash.Flow.to.Equity, Total.income.Total.expense, Revenue.Per.Share..Yuan..., 
-  Total.Asset.Turnover, ROA.A..before.interest.and...after.tax, ROA.B..before.interest.and.depreciation.after.tax, 
-  ROA.C..before.interest.and.depreciation.before.interest) #profitability dataframe 
+  dplyr::select(Bankrupt., Operating.Gross.Margin, Realized.Sales.Gross.Margin, Pre.tax.net.Interest.Rate, 
+  Operating.Profit.Growth.Rate, Cash.Flow.to.Equity, Total.income.Total.expense) # 
 
 mod_profit <- glm(Bankrupt. ~., data = profitability, family = binomial)
-summary(mod_profit) 
-plot(mod_profit, 1) # these are useless for generalized linear modeling!
-plot(mod_profit, 2) # ^ 
+summary(mod_profit) #only 2 significant predictors at alpha = 0.05. AIC: 1608.2
 
-mod_back <- step(mod_profit, direction = "backward", trace = 0) #keeps 4 predictors  
-mod_forward <- step(mod_profit, direction = "forward", trace = 0) #keeps 6 predictors 
+mod_back_prof <- step(mod_profit, direction = "backward", trace = 0) #step process with backwards deletion 
+summary(mod_back_prof) # 3 predictors significant at alpha = 0.05 after backwards step process (intercept, realized.sales.gross.margin, total.income.total.expenses, cash.flow.to.equity is almost significant, 
+#something to consider (pr>[z] = 0.0546), AIC: 1603.1
+mod_forward_prof <- step(mod_profit, direction = "forward", trace = 0) #step process with forwards adding 
+summary(mod_forward_prof) #only 2 predictors significant after forwards step process (cash.flow.to.equity, total.income.total.expenses), AIC: 1608.2
 
+prof_no_outliers <- profitability %>%
+  filter(hatvalues(mod_profit) < 0.05) #removed outliers based on hat values being larger than 0.05
+
+mod_prof_no_outliers <- glm(Bankrupt. ~., data = prof_no_outliers, family = binomial)
+summary(mod_prof_no_outliers) #4: intercept, operating.profit.growth.rate, cash.flow.to.equity, total.income.total.expense, AIC: 1580.7
+
+mod_back_prof <- step(mod_prof_no_outliers, direction = "backward", trace = 0) #step process with backwards deletion 
+summary(mod_back_prof) #4/4 predictors significant (Intercept, operating.profit.growth.rate, cash.flow.to.equity, total.income.total.expense), AIC: 1579.2
+
+mod_forward_prof <- step(mod_prof_no_outliers, direction = "forward", trace = 0) #step process with forwards adding 
+summary(mod_forward_prof) #4/7 significant predictors (intercept, operating.profit.growth.rate, cash.flow.to.equity.total.income.total.expense), AIC: 1580.7
 
 ### Growth Rates 
 
 
 growth_rates <- bankruptcy %>% 
-  select(contains("growth")) #growth rate category dataframe, 8 total predictors 
+  dplyr::select(Bankrupt., contains("growth")) #growth rate category dataframe
+
+mod_growth <- glm(Bankrupt. ~., data = growth_rates, family = binomial)
+summary(mod_growth) #3 significant predictors at alpha = 0.05. AIC: 1916.1 (operating.profit.growth.rate, total.asset.growth.rate, total.asset.return.growth.rate.ratio)
+
+growth_back <- step(mod_growth, direction = "backward", trace = 0) #step process with backwards deletion 
+summary(growth_back) #4: operating.profit.growth.rate, after.tax.net.profit.growth.rate, total.asset.growth.rate, total.asset.return.growth.rate.ratio, AIC: 1911.2
+growth_forward <- step(mod_growth, direction = "forward", trace = 0) #step process with forwards adding 
+summary(growth_forward) # 3: operating.profit.growth.rate, total.asset.growth.rate, total.asset.return.growth.rate.ratio, AIC: 1916.1
+
+growth_no_outliers <- growth_rates %>%
+  filter(hatvalues(mod_growth) < 0.05) #removed outliers based on hat values being larger than 0.05
+
+mod_growth_no_outliers <- glm(Bankrupt. ~., data = growth_no_outliers, family = binomial)
+summary(mod_growth_no_outliers) #3/9 significant predictors (after.tax.net.profit.growth.rate, regular.net.profit.growth.rate, net.value.growth.rate, 
+#continuous.net.profit.growth.rate is almost significant), AIC: 1505.7
+
+mod_back_growth <- step(mod_growth_no_outliers, direction = "backward", trace = 0) #step process with backwards deletion 
+summary(mod_back_growth) #4/6 high significance (Intercept,After.tax.Net.Profit.Growth.Rate,Regular.Net.Profit.Growth.Rate , Net.Value.Growth.Rate), 
+#2/6 significant at 0.1 (Continuous.Net.Profit.Growth.Rate, Total.Asset.Growth.Rate), AIC: 1501.9
+
+mod_back_growth <- step(mod_growth_no_outliers, direction = "forward", trace = 0) #step process with forwards adding 
+summary(mod_back_growth) #3/9 significant predictors (After.tax.Net.Profit.Growth.Rate , Regular.Net.Profit.Growth.Rate, Net.Value.Growth.Rate), 
+#1/9 significant at 0.1 (Continuous.Net.Profit.Growth.Rate), AIC: 1505.7
 
 
 ### Liquidity 
