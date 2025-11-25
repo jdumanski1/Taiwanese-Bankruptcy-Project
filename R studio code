@@ -91,27 +91,69 @@ summary(mod_back_growth) #3/9 significant predictors (After.tax.Net.Profit.Growt
 
 ### Liquidity 
 
+liquidity<- bankruptcy%>%select(Bankrupt.,Current.Ratio,Quick.Ratio,Cash.Flow.to.Total.Assets,Cash.Current.Liability,Working.Capital.to.Total.Assets,Long.term.fund.suitability.ratio..A.,Quick.Assets.Total.Assets)
 
-liquidity<- bankruptcy%>% select(Bankrupt.,Current.Ratio,Quick.Ratio,Cash.Flow.to.Total.Assets,Cash.Current.Liability,
-Working.Capital.to.Total.Assets,Long.term.fund.suitability.ratio..A.,Quick.Assets.Total.Assets) # liquidity dataframe 
-
-mod_liquid<-glm(Bankrupt.~.,data=liquidity,family=binomial) # liquidity generalized linear model 
+mod_liquid<-glm(Bankrupt.~.,data=liquidity,family=binomial)
 summary(mod_liquid)
+
+#multicollinearity
+library(regclass)
+VIF(mod_liquid)
+mod_less<-glm(Bankrupt.~.-Quick.Assets.Total.Assets,liquidity,family=binomial)
+VIF(mod_less)
+naive_liquid<-glm(bankrupt.~1,data=liq_outliers,family=binomial)
 
 plot(mod_liquid,1)
 plot(mod_liquid,2)
 #a warning popped up that said not plotting observations with leverage one:2500
 
-mod_back<-step(mod_liquid, direction="backward",trace=1)
-mod_back
+mod_back<-step(mod_liquid, direction="backward",trace=0)
+summary(mod_back)
 #start AIC=1672.9
 #removed current.ratio since, without this variable AIC went down to 1671.1 (so 6 variables total)
+#null deviance 1943.7, residual deviance 1657.1, AIC 1671.1
 
-mod_forward<-step(mod_liquid,direction="forward",trace=1)
-mod_forward
+mod_forward<-step(mod_liquid,direction="forward",trace=0)
+summary(mod_forward)
 #the AIC for full model is 1673
-#forward selection implied that all the variable should be included in the model, however, 
-#there were a lot of variables close to zero which are likely not statistically significant but yet, 
-#the forward model implies that none should be removed (all 7 kept)
+#forward selection implied that all the variable should be included in the model, however, there were a lot of variables close to zero which are likely not statistically significant but yet, the forward model implies that none should be removed (all 7 kept)
 
 #therefore, the backward selection is more optimal given that it lead to a better AIC score of 1672.9
+mod_best_liquid<-step(mod_liquid,direction="both",trace=0)
+summary(mod_best_liquid)
+
+##removed outliers and did forward and backward selection again
+no_liq_outliers<-liquidity%>%filter(hatvalues(mod_liquid)<0.05)
+mod_no_outliers_liq<-glm(Bankrupt.~.,no_liq_outliers,family=binomial())
+summary(mod_no_outliers_liq)
+
+mod_back_liq<-step(mod_no_outliers_liq,direction="backward",trace=0)
+summary(mod_back_liq)
+#intercept, cash.flow.to.total.assets, cash.current.libaility,working.capital.to.total.assets,quick.assets.total.assets (not included: current.ratio,quick.ratio,Long.term.fund.suitability.ratio..A.)
+#AIC: 1630.4
+
+mod_forward_liq<-step(mod_no_outliers_liq,direction="forward",trace=0)
+summary(mod_forward_liq)
+#not statistically significant: Current.Ratio, Quick.Ratio, Long.term.fund.suitability.ratio..A.
+#AIC: 1634
+#Null deviance: 1914.9 (df:6794), Residual deviance: 1618.0 (df:6787)
+
+mod<-glm(Bankrupt.~ . -Current.Ratio-Quick.Ratio-Long.term.fund.suitability.ratio..A.,no_liq_outliers,family=binomial)
+
+chi2<-summary(mod)$null-summary(mod)$deviance
+chi2
+#chi2=2294.4852
+p<-pchisq(chi2,df=4,lower.tail=FALSE)
+p
+#p=1.67619e-62
+#We reject the null at a significant level of 0.05 for a logistic regression model predicting the probability of bankruptcy by the intercept, cash.flow.to.total.assets, cash.current.libaility,working.capital.to.total.assets,quick.assets.total.assets is statistically significant.
+
+library(ROCR)
+pred<-predict(mod_back,type="response")
+rocpred<-prediction(pred,liquidity$Bankrupt.)
+roc<-performance(rocpred,"tpr","fpr")
+plot(roc)
+#area under the curve
+auc<-performance(rocpred,measure="auc")
+auc@y.values
+#mod_back=0.8014513
