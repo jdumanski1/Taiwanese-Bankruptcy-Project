@@ -163,3 +163,14 @@ plot(roc)
 auc<-performance(rocpred,measure="auc")
 auc@y.values
 #mod_back=0.8014513
+
+pred_mod<-predict(mod,type="response")
+rocpred<-prediction(pred_mod,no_liq_outliers$Bankrupt.)
+roc<-performance(rocpred,"tpr","fpr")
+plot(roc)
+auc<-performance(rocpred,measure="auc")
+auc@y.values
+#mod=0.805652
+
+##There is a small difference between mod_back (backward selection model)
+and the model without outliers which we can do a hypothesis test of???
