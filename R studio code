@@ -173,4 +173,5 @@ auc@y.values
 #mod=0.805652
 
 ##There is a small difference between mod_back (backward selection model)
-and the model without outliers which we can do a hypothesis test of???
+and the model without outliers and non-significane values (that backward/forward selection
+"said" to remove which we can maybe do a hypothesis test of???
