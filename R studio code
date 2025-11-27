@@ -175,3 +175,95 @@ auc@y.values
 ##There is a small difference between mod_back (backward selection model)
 and the model without outliers and non-significane values (that backward/forward selection
 "said" to remove which we can maybe do a hypothesis test of???
+
+## Following code added by Maddie for leverage model
+## I used an R markdown file so that's why the formatting is a bit strange
+
+Initializing new data frames and full models:
+```{r}
+bankruptcy <- read.csv("~/FALL 2025/STAT 308 F25/Final Project/bankruptcy.csv") #read in the file
+
+mod_bank <- lm(Bankrupt. ~ ., data = bankruptcy) #simple linear regression with all variables
+anova(mod_bank)
+
+library(tidyverse)
+leverage <- bankruptcy %>%
+  select(Bankrupt., Borrowing.dependency, Contingent.liabilities.Net.worth, Debt.ratio.., Operating.Funds.to.Liability, Interest.bearing.debt.interest.rate, Total.debt.Total.net.worth, Liability.to.Equity, Liability.Assets.Flag, Degree.of.Financial.Leverage..DFL., Equity.to.Liability, Quick.Assets.Current.Liability)
+
+leverage_model <- glm(Bankrupt. ~ ., leverage, family=binomial)
+```
+
+Performing backwards, forwards, and both variable selection strategy.
+```{r}
+model_back <- step(leverage_model, direction="backward", trace=0)
+# backward strategy kept 7 variables; final AIC:1528
+model_forward <- step(leverage_model, direction="forward", trace=0)
+# forward strategy kept all variables; final AIC:1534
+model_both <- step(leverage_model, direction="both", trace=0)
+```
+
+Found variables with high VIF (potential collinearity issue).
+Removed Liability to Equity, which had a VIF = 37.803.
+```{r}
+library(car)
+vif(leverage_model)
+
+## Remove these high VIF variables from the model; ANOVA to see if new model is more statistically significant 
+reduced_model <- glm(Bankrupt. ~ . -Liability.to.Equity, data=leverage, family=binomial)
+# p-value = 0.000278; model excluding Liability to Equity variable better at predicting bankruptcy
+
+# Hypothesis test using chi-squared and using exclusionary model from above
+chi2 <- summary(reduced_model)$null - summary(reduced_model)$deviance
+p <- pchisq(chi2, df=9, lower.tail=FALSE)
+# p-value is extremely small, 3.5x10^-85
+```
+
+Filter out observations from original model with high hat values to rid of outliers.
+```{r}
+leverage_no_outliers <- leverage %>%
+  filter(hatvalues(leverage_model) < 0.05)
+
+naive_model <- glm(Bankrupt. ~ 1, data=leverage_no_outliers, family=binomial)
+
+new_model_lev <- glm(Bankrupt. ~ ., data=leverage_no_outliers, family=binomial)
+
+new_model_both <- step(new_model_lev, direction="both", trace=0)
+# AIC:1464
+
+```
+
+Recalculate VIFs to check for collinearity.
+
+```{r}
+vif(new_model_both)
+# VIF for Liability to Equity = 10.465
+
+# New model removing this variable:
+new_model <- glm(Bankrupt. ~ Debt.ratio.. + Operating.Funds.to.Liability + Total.debt.Total.net.worth + Liability.Assets.Flag + Equity.to.Liability + Quick.Assets.Current.Liability, leverage_no_outliers, family=binomial)
+
+# Check VIFs again.
+vif(new_model)
+# Total debt/Total net worth VIF moderately high.
+
+anova(new_model, new_model_both)
+# model without liability/equity -> p-value=4.69e-5, indicating that it is more statistically 
+# significant in predicting Bankruptcy than the model including liability/equity
+
+# Try the same thing removing total debt/total net worth
+new_model2 <- glm(Bankrupt. ~ Debt.ratio.. + Operating.Funds.to.Liability + Liability.Assets.Flag + Equity.to.Liability + Quick.Assets.Current.Liability, leverage_no_outliers, family=binomial)
+
+anova(new_model, new_model2)
+# p-value=2.068e-4; model is more statistically significant when removing both values with high VIFs
+
+vif(new_model2)
+# All VIFs are now less than 2
+```
+
+Chi-square hypothesis test to test signficance of this model in predicting bankruptcy.
+```{r}
+chi_sq <- summary(new_model2)$null - summary(new_model2)$deviance
+p <- pchisq(chi2, df=4, lower.tail=FALSE)
+# p-value = 1.742x10^-89
+```
+
+
