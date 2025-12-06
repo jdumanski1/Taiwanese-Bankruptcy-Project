@@ -291,3 +291,17 @@ plot(roc)
 auc<-performance(rocpred,measure="auc")
 auc@y.values
 
+## LEVERAGE
+
+leverage <- bankruptcy %>%
+  select(Bankrupt., Borrowing.dependency, Contingent.liabilities.Net.worth, Debt.ratio.., Operating.Funds.to.Liability, Interest.bearing.debt.interest.rate, Total.debt.Total.net.worth, Liability.to.Equity, Liability.Assets.Flag, Degree.of.Financial.Leverage..DFL., Equity.to.Liability, Quick.Assets.Current.Liability)
+
+leverage_model <- glm(Bankrupt. ~ ., leverage, family=binomial)
+
+leverage_no_outliers <- leverage %>%
+  filter(hatvalues(leverage_model) < 0.05)
+
+final_df <- bankruptcy %>%
+  select(Borrowing.dependency, Debt.ratio.., Operating.Funds.to.Liability, Total.debt.Total.net.worth, Equity.to.Liability, Quick.Assets.Current.Liability, Bankrupt.)
+
+updated_model <- glm(Bankrupt. ~ Borrowing.dependency + Debt.ratio.. + Operating.Funds.to.Liability + Total.debt.Total.net.worth + Equity.to.Liability + Quick.Assets.Current.Liability, leverage_no_outliers, family=binomial)
